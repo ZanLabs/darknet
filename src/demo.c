@@ -37,6 +37,7 @@ static int demo_index = 0;
 static int demo_done = 0;
 static float *avg;
 double demo_time;
+static CvVideoWriter* output_video;
 
 void *detect_in_thread(void *ptr)
 {
@@ -136,6 +137,14 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
     if(filename){
         printf("video file: %s\n", filename);
         cap = cvCaptureFromFile(filename);
+        if(cap){
+            int fps = cvGetCaptureProperty(cap, CV_CAP_PROP_FPS);
+            output_video = cvCreateVideoWriter("output.avi", 
+                                                CV_FOURCC('M','J','P','G'),
+                                                fps,
+                                                cvSize(cvGetCaptureProperty(cap, CV_CAP_PROP_FRAME_WIDTH), cvGetCaptureProperty(cap, CV_CAP_PROP_FRAME_HEIGHT)),
+                                                1);
+        }
     }else{
         cap = cvCaptureFromCAM(cam_index);
 
@@ -173,7 +182,7 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
 
     int count = 0;
     if(!prefix){
-        cvNamedWindow("Demo", CV_WINDOW_NORMAL); 
+        cvNamedWindow("Demo", CV_WINDOW_NORMAL);
         if(fullscreen){
             cvSetWindowProperty("Demo", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
         } else {
@@ -193,14 +202,19 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
             demo_time = what_time_is_it_now();
             display_in_thread(0);
         }else{
-            char name[256];
-            sprintf(name, "%s_%08d", prefix, count);
-            save_image(buff[(buff_index + 1)%3], name);
+            if (output_video) {
+                save_video(output_video, buff[(buff_index + 1)%3]);
+            } else {
+                char name[256];
+                sprintf(name, "%s_%08d", prefix, count);
+                save_image(buff[(buff_index + 1)%3], name);
+            }
         }
         pthread_join(fetch_thread, 0);
         pthread_join(detect_thread, 0);
         ++count;
     }
+    cvReleaseVideoWriter(&output_video);
 }
 
 void demo_compare(char *cfg1, char *weight1, char *cfg2, char *weight2, float thresh, int cam_index, const char *filename, char **names, int classes, int delay, char *prefix, int avg_frames, float hier, int w, int h, int frames, int fullscreen)
@@ -261,7 +275,7 @@ void demo_compare(char *cfg1, char *weight1, char *cfg2, char *weight2, float th
 
     int count = 0;
     if(!prefix){
-        cvNamedWindow("Demo", CV_WINDOW_NORMAL); 
+        cvNamedWindow("Demo", CV_WINDOW_NORMAL);
         if(fullscreen){
             cvSetWindowProperty("Demo", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
         } else {
